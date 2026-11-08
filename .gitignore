@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+
+!.env.example
+
+generated/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Operating system
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Build files
+dist/
+/src/generated/prisma

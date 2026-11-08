@@ -1,0 +1,160 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// ========================================
+// ENUMS
+// ========================================
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  BLOCKED
+  COMPLETED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActivityType {
+  TASK_CREATED
+  TASK_ASSIGNED
+  STATUS_CHANGED
+  PRIORITY_CHANGED
+  TASK_UPDATED
+  COMMENT_ADDED
+}
+
+
+// ========================================
+// USER MODEL
+// ========================================
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(EMPLOYEE)
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdTasks  Task[]         @relation("TaskCreator")
+  assignedTasks Task[]         @relation("TaskAssignee")
+  comments      Comment[]
+  activities    TaskActivity[] @relation("ActivityActor")
+
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+
+// ========================================
+// TASK MODEL
+// ========================================
+
+model Task {
+  id          String       @id @default(uuid()) @db.Uuid
+  title       String
+  description String?      @db.Text
+
+  status   TaskStatus   @default(TODO)
+  priority TaskPriority @default(MEDIUM)
+
+  dueDate        DateTime?
+  estimatedHours Float?
+
+  createdById  String  @db.Uuid
+  assignedToId String? @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy User @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  assignedTo User? @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  comments   Comment[]
+  activities TaskActivity[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([dueDate])
+
+  @@map("tasks")
+}
+
+
+// ========================================
+// COMMENT MODEL
+// ========================================
+
+model Comment {
+  id      String @id @default(uuid()) @db.Uuid
+  content String @db.Text
+
+  taskId   String @db.Uuid
+  authorId String @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  author User @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([taskId])
+  @@index([authorId])
+  @@index([createdAt])
+
+  @@map("comments")
+}
+
+
+// ========================================
+// TASK ACTIVITY MODEL
+// ========================================
+
+model TaskActivity {
+  id String @id @default(uuid()) @db.Uuid
+
+  action  ActivityType
+  details String?      @db.Text
+
+  taskId  String  @db.Uuid
+  actorId String? @db.Uuid
+
+  createdAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  actor User? @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([taskId])
+  @@index([actorId])
+  @@index([createdAt])
+
+  @@map("task_activities")
+}
