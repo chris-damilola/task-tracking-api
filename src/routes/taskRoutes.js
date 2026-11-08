@@ -7,6 +7,9 @@ import {
   updateTask,
   updateTaskStatus,
   deleteTask,
+  assignTask,
+  getMyAssignedTasks,
+  getEmployeeWorkload,
 } from "../controllers/taskController.js";
 
 import protect from "../middleware/authMiddleware.js";
@@ -34,5 +37,18 @@ router.patch("/:id/status", updateTaskStatus);
 
 //Delete task
 router.delete("/:id", authorizeRoles("ADMIN", "MANAGER"), deleteTask);
+
+// Assign or reassign a task
+router.patch("/:id/assign", authorizeRoles("ADMIN", "MANAGER"), assignTask);
+
+// Employees view their assigned tasks
+router.get("/my/assigned", getMyAssignedTasks);
+
+// View employee workload
+router.get(
+  "/workload/:userId",
+  authorizeRoles("ADMIN", "MANAGER"),
+  getEmployeeWorkload,
+);
 
 export default router;

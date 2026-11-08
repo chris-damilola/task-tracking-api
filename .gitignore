@@ -1,25 +1,31 @@
 # Dependencies
 node_modules/
 
-# Environment variables
+# Environment variables and secrets
 .env
 .env.*
-
 !.env.example
 
+# Generated Prisma Client
 generated/
 
 # Logs
 *.log
 npm-debug.log*
 
-# Operating system
-.DS_Store
-Thumbs.db
-
 # Testing
 coverage/
 
 # Build files
 dist/
-/src/generated/prisma
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Editor temporary files
+*.swp
+*.swo
+
+# Personal local AI tool settings
+.claude/settings.local.json

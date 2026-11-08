@@ -649,3 +649,284 @@ export const deleteTask = async (req, res, next) => {
     next(error);
   }
 };
+
+// ASSIGN OR REASSIGN TASK
+export const assignTask = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { assignedToId } = req.body;
+
+    if (!assignedToId) {
+      return res.status(400).json({
+        success: false,
+        message: "Employee ID is required",
+      });
+    }
+
+    // Find the task
+    const task = await prisma.task.findUnique({
+      where: { id },
+    });
+
+    if (!task) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
+    }
+
+    // Check task ownership
+    if (req.user.role !== "ADMIN" && task.createdById !== req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot assign this task",
+      });
+    }
+
+    // Verify employee
+    const employee = await prisma.user.findUnique({
+      where: { id: assignedToId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    if (!employee || !employee.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found or inactive",
+      });
+    }
+
+    if (employee.role !== "EMPLOYEE") {
+      return res.status(400).json({
+        success: false,
+        message: "Tasks can only be assigned to employees",
+      });
+    }
+
+    // Prevent unnecessary reassigned
+    if (task.assignedToId === assignedToId) {
+      return res.status(400).json({
+        success: false,
+        message: "This task is already assigned to this employee",
+      });
+    }
+
+    // update assignment and record activity automatically
+    const updatedTask = await prisma.$transaction(async (tx) => {
+      const updated = await tx.task.update({
+        where: { id },
+        data: {
+          assignedToId,
+        },
+        include: {
+          assignedTo: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      await tx.taskActivity.create({
+        data: {
+          taskId: id,
+          actorId: req.user.id,
+          action: "TASK_ASSIGNED",
+          details: `Task assigned to ${employee.name}`,
+        },
+      });
+      return updated;
+    });
+
+    res.status(200).json({
+      success: true,
+      message: "Task assigned successfully",
+      data: updatedTask,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET MY ASSIGNED TASKS
+export const getMyAssignedTasks = async (req, res, next) => {
+  try {
+    const { status, priority, page = "1", limit = "10" } = req.query;
+
+    const pageNumber = Number(page);
+    const limitNumber = Number(limit);
+
+    if (
+      !Number.isInteger(pageNumber) ||
+      pageNumber < 1 ||
+      !Number.isInteger(limitNumber) ||
+      limitNumber < 1 ||
+      limitNumber > 50
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid pagination parameters",
+      });
+    }
+
+    const validStatuses = [
+      "TODO",
+      "IN_PROGRESS",
+      "IN_REVIEW",
+      "BLOCKED",
+      "COMPLETED",
+    ];
+
+    const validPriorities = ["LOW", "MEDIUM", "HIGH", "URGENT"];
+
+    if (status && !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid task status",
+      });
+    }
+    if (priority && !validPriorities.includes(priority)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid task priority",
+      });
+    }
+
+    const where = {
+      assignedToId: req.user.id,
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    if (priority) {
+      where.priority = priority;
+    }
+
+    const skip = (pageNumber - 1) * limitNumber;
+
+    const [tasks, total] = await prisma.$transaction([
+      prisma.task.findMany({
+        where,
+        skip,
+        take: limitNumber,
+        include: {
+          createdBy: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          dueDate: "asc",
+        },
+      }),
+
+      prisma.task.count({ where }),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      message: "Your assigned tasks retrieved successfully",
+      pagination: {
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber),
+      },
+
+      data: tasks,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET EMPLOYEE WORKLOAD
+export const getEmployeeWorkload = async (req, res, next) => {
+  try {
+    const { userId } = req.params;
+
+    // Find Employee
+    const employee = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+      },
+    });
+
+    if (!employee || employee.role !== "EMPLOYEE") {
+      return res.status(404).json({
+        success: false,
+        message: "Employee not found",
+      });
+    }
+
+    // Managers can only inspect workload for tasks they created
+    const where = {
+      assignedToId: userId,
+    };
+
+    if (req.user.role === "MANAGER") {
+      where.createdById = req.user.id;
+    }
+
+    const groupedTasks = await prisma.task.groupBy({
+      by: ["status"],
+      where,
+      _count: {
+        _all: true,
+      },
+    });
+
+    const workload = {
+      TODO: 0,
+      IN_PROGRESS: 0,
+      IN_REVIEW: 0,
+      BLOCKED: 0,
+      COMPLETED: 0,
+    };
+
+    groupedTasks.forEach((item) => {
+      workload[item.status] = item._count._all;
+    });
+
+    const totalTasks = Object.values(workload).reduce(
+      (total, count) => total + count,
+      0,
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Employee workload retrieved successfully",
+      data: {
+        employee,
+        totalTasks,
+        workload,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
