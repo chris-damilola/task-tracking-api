@@ -192,7 +192,7 @@ export const getCurrentUser = async (req, res, next) => {
     }
 
     res.status(200).json({
-      success: false,
+      success: true,
       message: "User profile retrieved successfully",
       data: {
         user: formatUser(user),

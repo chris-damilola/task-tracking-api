@@ -88,7 +88,7 @@ export const updateUser = async (req, res, next) => {
     const { name, email } = req.body;
 
     // only ADMIN can update another user's information.
-    if (req.user.role !== "ADMIN" && user.role.id !== id) {
+    if (req.user.role !== "ADMIN" && req.user.id !== id) {
       return res.status(403).json({
         success: false,
         message: "You cannot update another user's profile",

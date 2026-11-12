@@ -198,7 +198,7 @@ export const getTaskComment = async (req, res, next) => {
 };
 
 //UPDATE COMMENT
-export const updatedComment = async (req, res, next) => {
+export const updateComment = async (req, res, next) => {
   try {
     const { commentId } = req.params;
     const { content } = req.body;
@@ -252,7 +252,7 @@ export const updatedComment = async (req, res, next) => {
       });
     }
 
-    const updatedComment = await prisma.comment.update({
+    const updateComment = await prisma.comment.update({
       where: { id: commentId },
       data: {
         content: content.trim(),
@@ -271,7 +271,7 @@ export const updatedComment = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: "Comment updated successfully.",
-      data: updatedComment,
+      data: updateComment,
     });
   } catch (error) {
     next(error);
