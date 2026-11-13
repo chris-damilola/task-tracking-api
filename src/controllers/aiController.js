@@ -42,16 +42,51 @@ const getTaskContext = async (taskId, user) => {
     throw error;
   }
 
+  // const task = await prisma.task.findUnique({
+  //   where: {
+  //     id: taskId,
+  //   },
+  //   include: {
+  //     comments: {
+  //       take: 50,
+  //       orderBy: {
+  //         createdAt: "desc",
+  //       },
+  //       include: {
+  //         author: {
+  //           select: {
+  //             id: true,
+  //             name: true,
+  //           },
+  //         },
+  //       },
+  //     },
+  //   },
+  // });
+
   const task = await prisma.task.findUnique({
     where: {
       id: taskId,
     },
     include: {
-      comments: {
-        take: 50,
-        orderBy: {
-          createdAt: "desc",
+      assignedTo: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
         },
+      },
+
+      createdBy: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+
+      comments: {
         include: {
           author: {
             select: {
@@ -60,10 +95,13 @@ const getTaskContext = async (taskId, user) => {
             },
           },
         },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 50,
       },
     },
   });
-
   if (!task) {
     const error = new Error("Task not found.");
     error.statusCode = 404;
