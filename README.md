@@ -290,7 +290,6 @@ task-tracking-API/
 │   ├── validators/
 |   |   └── schema.js
 │   │
-│   ├── utils/
 │   │
 │   ├── app.js
 │   └── check-db.js
