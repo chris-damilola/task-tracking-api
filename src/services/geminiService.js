@@ -7,7 +7,7 @@ export const generateAIResponse = async (prompt) => {
     console.log("Sending request to Gemini...");
 
     const response = await ai.models.generateContent({
-      model: GEMINI_MODEL,
+      model: GEMINI_MODEL || "gemini-3.5-flash-lite",
       contents: prompt,
       config: {
         temperature: 0.2,
