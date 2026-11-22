@@ -17,6 +17,7 @@ const options = {
         description: "API server",
       },
     ],
+
     components: {
       securitySchemes: {
         bearerAuth: {

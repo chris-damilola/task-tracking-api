@@ -38,6 +38,7 @@ app.get("/", (req, res) => {
 });
 
 app.use("/api", apiLimiter);
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 app.use("/api/auth", authLimiter);
 app.use("/api/ai", aiLimiter);
 
@@ -49,7 +50,6 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api", commentRoutes);
 app.use("/api/ai", aiRoutes);
 
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 // Handles unknown Routes
 app.use(notFound);
 
