@@ -3,53 +3,81 @@ import ai, { GEMINI_MODEL } from "../config/gemini.js";
 // GENERIC GEMINI RESPONSE FUNCTION
 
 export const generateAIResponse = async (prompt) => {
-  try {
-    console.log("Sending request to Gemini...");
+  const maxAttempts = 3;
 
-    const response = await ai.models.generateContent({
-      model: GEMINI_MODEL || "gemini-3.5-flash-lite",
-      contents: prompt,
-      config: {
-        temperature: 0.2,
-        maxOutputTokens: 1000,
-        responseMimeType: "application/json",
-      },
-    });
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      console.log(
+        `Sending request to Gemini (Attempt ${attempt}/${maxAttempts})...`,
+      );
 
-    console.log("Gemini response received.");
+      const response = await ai.models.generateContent({
+        model: GEMINI_MODEL || "gemini-3.5-flash-lite",
+        contents: prompt,
+        config: {
+          temperature: 0.2,
+          maxOutputTokens: 1000,
+          responseMimeType: "application/json",
+        },
+      });
 
-    const text = response.text;
+      console.log("Gemini response received.");
 
-    if (!text) {
-      throw new Error("Gemini returned an empty response.");
+      const text = response.text;
+
+      if (!text) {
+        throw new Error("Gemini returned an empty response.");
+      }
+
+      return JSON.parse(text);
+    } catch (error) {
+      const upstreamStatus = Number(
+        error.status || error.statusCode || error.error?.code,
+      );
+
+      console.error("Gemini API Error:", error.message);
+
+      const retryableStatuses = [429, 500, 502, 503, 504];
+
+      const shouldRetry = retryableStatuses.includes(upstreamStatus);
+
+      // Stop immediately if the error is not retryable
+      // or the maximum number of attempts has been reached.
+      if (!shouldRetry || attempt === maxAttempts) {
+        const aiError = new Error(
+          "Unable to generate AI response at this time.",
+        );
+
+        if (upstreamStatus === 429) {
+          aiError.statusCode = 429;
+          aiError.message =
+            "AI service rate limit reached. Please try again later.";
+        } else if (upstreamStatus === 503) {
+          aiError.statusCode = 503;
+          aiError.message =
+            "AI service is temporarily unavailable. Please try again later.";
+        } else if (upstreamStatus === 504) {
+          aiError.statusCode = 504;
+          aiError.message = "AI request timed out. Please try again.";
+        } else {
+          aiError.statusCode = 502;
+        }
+
+        throw aiError;
+      }
+
+      // Exponential backoff: approximately 2 seconds, then 4 seconds.
+      const delay = 2000 * Math.pow(2, attempt - 1);
+
+      console.log(
+        `Gemini temporarily unavailable. Retrying in ${delay / 1000} seconds...`,
+      );
+
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-
-    return JSON.parse(text);
-  } catch (error) {
-    console.error("Gemini API Error:", error.message);
-
-    const upstreamStatus = Number(error.status || error.statusCode);
-
-    const aiError = new Error("Unable to generate AI response at this time.");
-
-    if (upstreamStatus === 429) {
-      aiError.statusCode = 429;
-      aiError.message =
-        "AI service rate limit reached. Please try again later.";
-    } else if (upstreamStatus === 503) {
-      aiError.statusCode = 503;
-      aiError.message =
-        "AI service is temporarily unavailable. Please try again later.";
-    } else if (upstreamStatus === 504) {
-      aiError.statusCode = 504;
-      aiError.message = "AI request timed out. Please try again.";
-    } else {
-      aiError.statusCode = 502;
-    }
-
-    throw aiError;
   }
 };
+
 // 1. SUMMARIZE TASK DISCUSSION
 
 export const summarizeTaskDiscussion = async (task, comments) => {
